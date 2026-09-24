@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f5132">
+<title>撲克牌點數計算</title>
+<style>
+  :root {
+    --bg: #f4f6f5;
+    --surface: #ffffff;
+    --text: #1b1f1d;
+    --muted: #6b7470;
+    --accent: #0f5132;
+    --accent-text: #ffffff;
+    --red: #c62828;
+    --border: #d9dfdc;
+    --shadow: 0 1px 3px rgba(0, 0, 0, .12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121614;
+      --surface: #1e2421;
+      --text: #eef2f0;
+      --muted: #9aa5a0;
+      --accent: #2e9e6a;
+      --accent-text: #0b0f0d;
+      --red: #ef6b6b;
+      --border: #2d3531;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .5);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  main {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  }
+  .score {
+    background: var(--accent);
+    color: var(--accent-text);
+    border-radius: 16px;
+    padding: 16px 20px;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .score .label { font-size: 14px; opacity: .85; }
+  .score .total {
+    font-size: clamp(56px, 18vw, 88px);
+    font-weight: 700;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .score .count { font-size: 14px; opacity: .85; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .card {
+    aspect-ratio: 5 / 6;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    font: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    transition: transform .08s ease;
+    position: relative;
+  }
+  .card:active { transform: scale(.92); }
+  .card .face { font-size: clamp(24px, 8vw, 34px); font-weight: 700; }
+  .card .pts { font-size: 12px; color: var(--muted); }
+  .card.royal .face { color: var(--red); }
+  .card .badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 24px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    font-variant-numeric: tabular-nums;
+  }
+  .card .badge:empty { display: none; }
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .actions button {
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .actions button:active { transform: scale(.97); }
+  .actions button:disabled { opacity: .4; cursor: default; transform: none; }
+  .actions .reset { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <section class="score">
+    <div class="label">總和</div>
+    <div class="total" id="total">0</div>
+    <div class="count" id="count">0 張</div>
+  </section>
+
+  <section class="cards" id="cards"></section>
+
+  <section class="actions">
+    <button id="undo" type="button">↶ 復原</button>
+    <button id="reset" class="reset" type="button">歸零</button>
+  </section>
+
+</main>
+
+<script>
+  const POINTS = { A: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, J: 15, Q: 15, K: 15 };
+  const FACES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+  const ROYAL = new Set(['J', 'Q', 'K']);
+
+  const history = [];
+  const $ = (id) => document.getElementById(id);
+
+  function render() {
+    const total = history.reduce((sum, face) => sum + POINTS[face], 0);
+    $('total').textContent = total;
+    $('count').textContent = history.length + ' 張';
+    $('undo').disabled = history.length === 0;
+    $('reset').disabled = history.length === 0;
+
+    for (const [face, badge] of badges) {
+      const n = history.filter((f) => f === face).length;
+      badge.textContent = n > 0 ? n : '';
+    }
+  }
+
+  const badges = new Map();
+  const cards = $('cards');
+  for (const face of FACES) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'card' + (ROYAL.has(face) ? ' royal' : '');
+    btn.innerHTML = `<span class="face">${face}</span><span class="pts">${POINTS[face]} 點</span><span class="badge"></span>`;
+    badges.set(face, btn.querySelector('.badge'));
+    btn.addEventListener('click', () => { history.push(face); render(); });
+    cards.append(btn);
+  }
+
+  $('undo').addEventListener('click', () => { history.pop(); render(); });
+  $('reset').addEventListener('click', () => { history.length = 0; render(); });
+
+  render();
+</script>
+</body>
+</html>
