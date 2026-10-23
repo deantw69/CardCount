@@ -50,7 +50,7 @@
   main {
     max-width: 520px;
     margin: 0 auto;
-    padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+    padding: calc(env(safe-area-inset-top) + 24px) 16px max(24px, env(safe-area-inset-bottom));
   }
   .score {
     background: var(--accent);
